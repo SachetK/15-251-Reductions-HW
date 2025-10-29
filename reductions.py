@@ -73,25 +73,32 @@ Output: a ZPMOMatrix object M representing a NONZERO-MATRIX instance
 """
 choice_NONZERO_MATRIX_reduce_from = "3SAT"
 def to_NONZERO_MATRIX(C) -> ZPMOMatrix:
-    # Step 1: collect distinct variables
-    variables = sorted({abs(lit) for clause in C.formula for lit in clause})
-    num_vars = len(variables)
+    # Step 1: determine number of variables and clauses
+    total_vars = max(abs(var) for clause in C.formula for var in clause)
     num_clauses = len(C.formula)
 
-    # mapping: variable -> row index
-    var_to_index = {v: i for i, v in enumerate(variables)}
+    # Step 2: initialize matrix: one row per variable
+    M = [[0] * num_clauses for _ in range(total_vars)]
 
-    # Step 2: initialize matrix
-    M = [[0 for _ in range(num_clauses)] for _ in range(num_vars)]
-
-    # Step 3: fill matrix
-    for j, clause in enumerate(C.formula):  # column = clause index
+    # Step 3: fill matrix, handle duplicates within clause
+    extra_rows = []
+    for j, clause in enumerate(C.formula):
+        seen = set()
         for lit in clause:
-            row = var_to_index[abs(lit)]
-            if lit > 0:
-                M[row][j] = 1
+            var = abs(lit)
+            row = var - 1  # 0-based indexing
+            if var not in seen:
+                M[row][j] = 1 if lit > 0 else -1
             else:
-                M[row][j] = -1
+                # duplicate: we will later add an extra row to keep column non-zero
+                extra_rows.append((j, lit > 0))
+            seen.add(var)
+
+    # Step 4: add extra rows for duplicates to guarantee non-zero column
+    for j, is_positive in extra_rows:
+        row = [0] * num_clauses
+        row[j] = 1 if is_positive else -1
+        M.append(row)
 
     return ZPMOMatrix(M)
 
